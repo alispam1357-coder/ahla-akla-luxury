@@ -1,7 +1,7 @@
 {
   "name": "Ahla Akla Chef Dashboard",
   "short_name": "Ahla Akla",
-  "start_url": "/admin",
+  "start_url": "admin.html",
   "display": "standalone",
   "background_color": "#fbf7f0",
   "theme_color": "#c96845",

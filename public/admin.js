@@ -3,6 +3,8 @@ let lang = localStorage.getItem('ahla-lang') || 'ar';
 const t = (ar, en) => lang === 'ar' ? ar : en;
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 const money = value => `${Number(value || 0).toLocaleString()} EGP`;
+const normalizeLocalLinks = () => document.querySelectorAll('a[href="/"]').forEach(link => link.setAttribute('href', 'index.html'));
+const normalizeLocalAssets = () => document.querySelectorAll('img[src="/placeholder-food.svg"]').forEach(image => image.setAttribute('src', 'placeholder-food.svg'));
 
 function login() {
   root.innerHTML = `<div class="admin-login"><div class="login-art"><span>🍽️</span><h1>أحلى أكلة</h1><p>Kitchen, but make it yours.</p></div><form id="loginForm"><p class="eyebrow">CHEF ACCESS</p><h2>${t('دخول الشيف', 'Chef login')}</h2><label>${t('اسم المستخدم', 'Username')}<input name="username" value="chef" required></label><label>${t('كلمة المرور', 'Password')}<input name="password" type="password" required></label><button>${t('دخول', 'Login')} <span>←</span></button><a href="/">← ${t('العودة للموقع', 'Back to website')}</a><button type="button" class="lang-btn" id="adminLang">EN / عربي</button><p id="loginError" class="error-message"></p></form></div>`;
@@ -13,6 +15,8 @@ function login() {
     document.querySelector('#loginError').textContent = t('بيانات الدخول غير صحيحة', 'Invalid login');
   };
   document.querySelector('#adminLang').onclick = () => { lang = lang === 'ar' ? 'en' : 'ar'; localStorage.setItem('ahla-lang', lang); login(); };
+  normalizeLocalLinks();
+  normalizeLocalAssets();
 }
 
 async function registerPush() {
@@ -21,7 +25,7 @@ async function registerPush() {
     const keyResponse = await fetch('/api/push/public-key');
     if (!keyResponse.ok) return;
     const { publicKey } = await keyResponse.json();
-    const registration = await navigator.serviceWorker.register('/sw.js');
+    const registration = await navigator.serviceWorker.register('sw.js');
     const permission = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
     if (permission !== 'granted') return;
     const encodedKey = publicKey.replace(/-/g, '+').replace(/_/g, '/');
@@ -45,6 +49,8 @@ async function dashboard() {
   document.querySelector('#logout').onclick = async () => { await fetch('/api/admin/logout', { method: 'POST' }); login(); };
   document.querySelectorAll('[data-tab]').forEach(button => button.onclick = () => { document.querySelectorAll('[data-tab]').forEach(item => item.classList.remove('active')); button.classList.add('active'); if (button.dataset.tab === 'orders') renderOrders(orders); else if (button.dataset.tab === 'buffets') renderBuffetRequests(buffetRequests); else renderProducts(data, settings); });
   renderProducts(data, settings);
+  normalizeLocalLinks();
+  normalizeLocalAssets();
   registerPush();
 }
 

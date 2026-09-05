@@ -3,17 +3,17 @@ self.addEventListener('push', event => {
   const data = event.data.json();
   event.waitUntil(self.registration.showNotification(data.title || 'Ahla Akla', {
     body: data.body || 'A new order has arrived.',
-    icon: '/placeholder-food.svg',
-    badge: '/placeholder-food.svg',
+    icon: 'placeholder-food.svg',
+    badge: 'placeholder-food.svg',
     tag: data.orderNumber || 'ahla-akla-order',
-    data: { url: data.url || '/admin' },
+    data: { url: data.url || 'admin.html' },
     requireInteraction: true
   }));
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || '/admin', self.location.origin).href;
+  const target = new URL(event.notification.data?.url || 'admin.html', self.location.href).href;
   event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(openClients => {
     const existing = openClients.find(client => client.url.startsWith(self.location.origin));
     if (existing) return existing.focus().then(() => existing.navigate(target));
