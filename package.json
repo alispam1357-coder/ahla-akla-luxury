@@ -9,15 +9,16 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build": "node --check server.js && node --check db.js && node --check storage.js && node --check session.js && node --check scripts/migrate-sqlite.js",
+    "migrate:db": "node scripts/migrate-sqlite.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
-    "connect-sqlite3": "^0.9.15",
+    "@libsql/client": "^0.15.15",
+    "@vercel/blob": "^0.27.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
-    "express-session": "^1.18.1",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.0.2",
     "web-push": "^3.6.7"
   }
 }
