@@ -1,4 +1,5 @@
 const { createClient } = require('@libsql/client');
+const { categories, products } = require('./menu-seed');
 
 const url = process.env.TURSO_DATABASE_URL || 'file:database/ahla-akla.db';
 const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
@@ -20,6 +21,19 @@ async function init() {
   await initPromise;
   await client.execute({ sql: "INSERT OR IGNORE INTO settings (key,value) VALUES ('chef_phone','')", args: [] });
   await client.execute({ sql: "INSERT OR IGNORE INTO settings (key,value) VALUES ('buffet_price_per_person','0')", args: [] });
+  await seedMenu();
+}
+
+async function seedMenu() {
+  for (const [slug, nameAr, nameEn, descriptionAr, descriptionEn, icon, sortOrder] of categories) {
+    await run('INSERT OR IGNORE INTO categories (slug,name_ar,name_en,description_ar,description_en,icon,sort_order) VALUES (?,?,?,?,?,?,?)', [slug, nameAr, nameEn, descriptionAr, descriptionEn, icon, sortOrder]);
+  }
+  for (const [categoryIndex, nameAr, nameEn, descriptionAr, descriptionEn, priceReady, priceCooked] of products) {
+    const category = await get('SELECT id FROM categories WHERE slug=?', [categories[categoryIndex][0]]);
+    const product = await get('SELECT id FROM products WHERE category_id=? AND name_en=?', [category.id, nameEn]);
+    if (product) continue;
+    await run('INSERT INTO products (category_id,name_ar,name_en,description_ar,description_en,price_ready,price_cooked,today_price,visible,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)', [category.id, nameAr, nameEn, descriptionAr, descriptionEn, priceReady, priceCooked, priceReady === null && priceCooked === null ? 1 : 0, 1, (await all('SELECT COUNT(*) AS count FROM products WHERE category_id=?', [category.id]))[0].count]);
+  }
 }
 
 async function all(sql, args = []) { const result = await client.execute({ sql, args }); return result.rows.map(row => ({ ...row })); }
