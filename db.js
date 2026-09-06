@@ -1,7 +1,8 @@
 const { createClient } = require('@libsql/client');
 const { categories, products } = require('./menu-seed');
 
-const url = process.env.TURSO_DATABASE_URL || 'file:database/ahla-akla.db';
+const url =
+  process.env.TURSO_DATABASE_URL || 'file:database/ahla-akla.db';
 
 const client = createClient({
   url,
@@ -115,7 +116,21 @@ let initPromise;
 
 async function init() {
   if (!initPromise) {
-    initPromise = client.batch(
+    initPromise = initializeDatabase();
+  }
+
+  return initPromise;
+}
+
+async function initializeDatabase() {
+  try {
+    console.log(
+      'DATABASE:',
+      process.env.TURSO_DATABASE_URL ? 'TURSO' : 'LOCAL'
+    );
+
+    // Create all tables
+    await client.batch(
       schema
         .split(';')
         .map(sql => sql.trim())
@@ -126,54 +141,82 @@ async function init() {
         })),
       'write'
     );
+
+    console.log('Database schema ready.');
+
+    // Default settings
+    await client.execute({
+      sql: `
+        INSERT OR IGNORE INTO settings (key, value)
+        VALUES ('chef_phone', '')
+      `,
+      args: []
+    });
+
+    await client.execute({
+      sql: `
+        INSERT OR IGNORE INTO settings (key, value)
+        VALUES ('buffet_price_per_person', '0')
+      `,
+      args: []
+    });
+
+    // Check current menu
+    const beforeCategories = await get(
+      'SELECT COUNT(*) AS count FROM categories'
+    );
+
+    const beforeProducts = await get(
+      'SELECT COUNT(*) AS count FROM products'
+    );
+
+    console.log(
+      'BEFORE SEED CATEGORIES:',
+      beforeCategories?.count ?? 0
+    );
+
+    console.log(
+      'BEFORE SEED PRODUCTS:',
+      beforeProducts?.count ?? 0
+    );
+
+    // Seed menu
+    await seedMenu();
+
+    // Check menu after seeding
+    const afterCategories = await get(
+      'SELECT COUNT(*) AS count FROM categories'
+    );
+
+    const afterProducts = await get(
+      'SELECT COUNT(*) AS count FROM products'
+    );
+
+    console.log(
+      'AFTER SEED CATEGORIES:',
+      afterCategories?.count ?? 0
+    );
+
+    console.log(
+      'AFTER SEED PRODUCTS:',
+      afterProducts?.count ?? 0
+    );
+
+    console.log('Database initialization complete.');
+  } catch (error) {
+    console.error('DATABASE INITIALIZATION ERROR:', error);
+    throw error;
   }
-
-  await initPromise;
-
-  await client.execute({
-    sql: "INSERT OR IGNORE INTO settings (key,value) VALUES ('chef_phone','')",
-    args: []
-  });
-
-  await client.execute({
-    sql: "INSERT OR IGNORE INTO settings (key,value) VALUES ('buffet_price_per_person','0')",
-    args: []
-  });
-
-  console.log(
-    'DATABASE URL:',
-    process.env.TURSO_DATABASE_URL ? 'TURSO' : 'LOCAL'
-  );
-
-  const beforeCategories = await all(
-    'SELECT COUNT(*) AS count FROM categories'
-  );
-
-  const beforeProducts = await all(
-    'SELECT COUNT(*) AS count FROM products'
-  );
-
-  console.log('BEFORE SEED CATEGORIES:', beforeCategories[0].count);
-  console.log('BEFORE SEED PRODUCTS:', beforeProducts[0].count);
-
-  await seedMenu();
-
-  const afterCategories = await all(
-    'SELECT COUNT(*) AS count FROM categories'
-  );
-
-  const afterProducts = await all(
-    'SELECT COUNT(*) AS count FROM products'
-  );
-
-  console.log('AFTER SEED CATEGORIES:', afterCategories[0].count);
-  console.log('AFTER SEED PRODUCTS:', afterProducts[0].count);
 }
 
 async function seedMenu() {
   console.log('Starting menu seed...');
 
-  for (
+  // -------------------------
+  // Categories
+  // -------------------------
+
+  for (const category of categories) {
     const [
       slug,
       nameAr,
@@ -182,12 +225,22 @@ async function seedMenu() {
       descriptionEn,
       icon,
       sortOrder
-    ] of categories
-  ) {
+    ] = category;
+
     await run(
-      `INSERT OR IGNORE INTO categories
-      (slug,name_ar,name_en,description_ar,description_en,icon,sort_order)
-      VALUES (?,?,?,?,?,?,?)`,
+      `
+      INSERT OR IGNORE INTO categories
+      (
+        slug,
+        name_ar,
+        name_en,
+        description_ar,
+        description_en,
+        icon,
+        sort_order
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
       [
         slug,
         nameAr,
@@ -202,7 +255,11 @@ async function seedMenu() {
 
   console.log(`Seeded ${categories.length} categories.`);
 
-  for (
+  // -------------------------
+  // Products
+  // -------------------------
+
+  for (const product of products) {
     const [
       categoryIndex,
       nameAr,
@@ -211,19 +268,21 @@ async function seedMenu() {
       descriptionEn,
       priceReady,
       priceCooked
-    ] of products
-  ) {
-    const categorySlug = categories[categoryIndex]?.[0];
+    ] = product;
 
-    if (!categorySlug) {
+    const categoryData = categories[categoryIndex];
+
+    if (!categoryData) {
       console.error(
         `Invalid category index ${categoryIndex} for product ${nameEn}`
       );
       continue;
     }
 
+    const categorySlug = categoryData[0];
+
     const category = await get(
-      'SELECT id FROM categories WHERE slug=?',
+      'SELECT id FROM categories WHERE slug = ?',
       [categorySlug]
     );
 
@@ -234,22 +293,35 @@ async function seedMenu() {
       continue;
     }
 
-    const product = await get(
-      'SELECT id FROM products WHERE category_id=? AND name_en=?',
+    // Don't insert duplicates
+    const existingProduct = await get(
+      `
+      SELECT id
+      FROM products
+      WHERE category_id = ?
+      AND name_en = ?
+      `,
       [category.id, nameEn]
     );
 
-    if (product) continue;
+    if (existingProduct) {
+      continue;
+    }
 
-    const countResult = await all(
-      'SELECT COUNT(*) AS count FROM products WHERE category_id=?',
+    const countResult = await get(
+      `
+      SELECT COUNT(*) AS count
+      FROM products
+      WHERE category_id = ?
+      `,
       [category.id]
     );
 
-    const sortOrder = Number(countResult[0].count);
+    const sortOrder = Number(countResult?.count ?? 0);
 
     await run(
-      `INSERT INTO products
+      `
+      INSERT INTO products
       (
         category_id,
         name_ar,
@@ -262,7 +334,8 @@ async function seedMenu() {
         visible,
         sort_order
       )
-      VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
       [
         category.id,
         nameAr,
@@ -271,7 +344,10 @@ async function seedMenu() {
         descriptionEn,
         priceReady,
         priceCooked,
+
+        // If both prices are null, this is a "today price" product.
         priceReady === null && priceCooked === null ? 1 : 0,
+
         1,
         sortOrder
       ]
@@ -280,6 +356,10 @@ async function seedMenu() {
 
   console.log(`Processed ${products.length} products.`);
 }
+
+// -------------------------
+// Database helpers
+// -------------------------
 
 async function all(sql, args = []) {
   const result = await client.execute({
