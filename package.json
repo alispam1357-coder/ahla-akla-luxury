@@ -1,24 +1,25 @@
 {
-  "name": "ahla-akla",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Ahla Akla homemade Egyptian food ordering website",
-  "main": "server.js",
-  "engines": {
-    "node": "20.x"
-  },
-  "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "build": "node --check server.js && node --check db.js && node --check storage.js && node --check session.js && node --check scripts/migrate-sqlite.js",
-    "migrate:db": "node scripts/migrate-sqlite.js"
-  },
-  "dependencies": {
-    "@libsql/client": "^0.15.15",
-    "@vercel/blob": "^0.27.1",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.1",
-    "multer": "^2.0.2",
-    "web-push": "^3.6.7"
-  }
+"name": "ahla-akla",
+"version": "1.0.0",
+"private": true,
+"description": "Ahla Akla homemade Egyptian food ordering website",
+"main": "server.js",
+"engines": {
+"node": "24.x"
+},
+"scripts": {
+"start": "node server.js",
+"dev": "node --watch server.js",
+"build": "node --check server.js && node --check db.js && node --check storage.js && node --check session.js && node --check scripts/migrate-sqlite.js",
+"migrate:db": "node scripts/migrate-sqlite.js"
+},
+"dependencies": {
+"@libsql/client": "^0.15.15",
+"@vercel/blob": "^0.27.1",
+"dotenv": "^16.4.5",
+"express": "^4.21.1",
+"multer": "^2.0.2",
+"web-push": "^3.6.7"
 }
+}
+
