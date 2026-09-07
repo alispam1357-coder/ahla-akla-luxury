@@ -11,17 +11,37 @@ const { sessionMiddleware } = require('./session');
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 }, fileFilter: (_, file, cb) => cb(null, /^image\/(jpeg|png|webp|gif)$/.test(file.mimetype)) });
 const egyptianPhone = value => { const compact = String(value || '').replace(/[\s()-]/g, ''); const normalized = compact.startsWith('+20') ? `0${compact.slice(3)}` : compact.startsWith('20') ? `0${compact.slice(2)}` : compact; return /^01[0125]\d{8}$/.test(normalized) && !/^01[0125]0{8}$/.test(normalized) ? normalized : null; };
-const ready = db.init();
+let databaseError = null;
+const ready = db.init().catch(error => {
+  databaseError = error;
+  console.error('DATABASE INITIALIZATION ERROR:', error.message);
+  return false;
+});
 const adminPassword = process.env.ADMIN_PASSWORD || 'chef1357';
 const requireAdmin = (req, res, next) => req.session.admin ? next() : res.status(401).json({ error: 'Unauthorized' });
 const vapidReady = Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT);
 if (vapidReady) webpush.setVapidDetails(process.env.VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 
-app.use(async (req, res, next) => { try { await ready; next(); } catch (error) { next(error); } });
+// Serve the browser app even when a deployment has not received its database variables yet.
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(async (req, res, next) => {
+  if (req.path === '/api/health') return next();
+  try {
+    await ready;
+    if (databaseError) {
+      if (req.path.startsWith('/api/')) return res.status(503).json({ error: 'Database unavailable. Configure TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Vercel.' });
+      return next(databaseError);
+    }
+    next();
+  } catch (error) {
+    console.error('Database unavailable:', error.message);
+    if (req.path.startsWith('/api/')) return res.status(503).json({ error: 'Database unavailable. Configure TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Vercel.' });
+    next(error);
+  }
+});
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
-app.use(express.static(path.join(__dirname, 'public')));
 
 async function upsertCustomer(name, phone, address) {
   const existing = await db.get('SELECT id FROM customers WHERE phone=?', [phone]);
