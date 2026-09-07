@@ -251,6 +251,15 @@ async function seedMenu() {
         sortOrder
       ]
     );
+
+    await run(
+      `
+      UPDATE categories
+      SET name_ar=?, name_en=?, description_ar=?, description_en=?, icon=?, sort_order=?
+      WHERE slug=?
+      `,
+      [nameAr, nameEn, descriptionAr, descriptionEn, icon, sortOrder, slug]
+    );
   }
 
   console.log(`Seeded ${categories.length} categories.`);
@@ -305,6 +314,23 @@ async function seedMenu() {
     );
 
     if (existingProduct) {
+      await run(
+        `
+        UPDATE products
+        SET name_ar=?, description_ar=?, description_en=?, price_ready=?, price_cooked=?, today_price=?, sort_order=?
+        WHERE id=?
+        `,
+        [
+          nameAr,
+          descriptionAr,
+          descriptionEn,
+          priceReady,
+          priceCooked,
+          priceReady === null && priceCooked === null ? 1 : 0,
+          Number((await get('SELECT sort_order FROM products WHERE id=?', [existingProduct.id]))?.sort_order ?? 0),
+          existingProduct.id
+        ]
+      );
       continue;
     }
 
